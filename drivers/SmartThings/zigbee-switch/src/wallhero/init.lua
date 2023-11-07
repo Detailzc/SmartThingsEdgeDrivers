@@ -16,8 +16,10 @@ local capabilities = require "st.capabilities"
 local log = require "log"
 local stDevice = require "st.device"
 local zcl_clusters = require "st.zigbee.zcl.clusters"
+local cluster_base = require "st.zigbee.cluster_base"
 
 local Scenes = zcl_clusters.Scenes
+
 
 local FINGERPRINTS = {
   { mfr = "WALL HERO", model = "ACL-401S4I", switches = 4, buttons = 0 },
@@ -90,6 +92,33 @@ local function device_added(driver, device)
   end
 end
 
+local function device_info_changed(driver, device, event, args)
+  local preferences = device.preferences
+  local old_preferences = args.old_st_store.preferences
+  if preferences ~= nil then
+      local old_value = old_preferences.backOnOff
+      local value = preferences.backOnOff
+      if value ~= nil  then
+           if value ~= old_value then
+             if value == true then
+               local message = cluster_base.build_manufacturer_specific_command(device, 0x0006, 0x05, 0x1235, "")
+               message.body.zcl_body = nil
+               message.body.zcl_header.frame_ctrl.value = 0x01
+               device:send(message)
+             else
+               local message = cluster_base.build_manufacturer_specific_command(device, 0x0006, 0x06, 0x1235, "")
+               message.body.zcl_body = nil
+               message.body.zcl_header.frame_ctrl.value = 0x01
+               device:send(message)
+             end
+           end
+      end
+   end
+end
+
+
+	     
+
 local function device_init(driver, device, event)
   device:set_find_child(find_child)
 end
@@ -104,7 +133,8 @@ local wallheroswitch = {
   NAME = "Zigbee Wall Hero Switch",
   lifecycle_handlers = {
     added = device_added,
-    init = device_init
+    init = device_init,
+    infoChanged = device_info_changed
   },
   zigbee_handlers = {
     cluster = {
